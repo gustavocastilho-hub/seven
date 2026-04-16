@@ -133,6 +133,7 @@ async def chat_with_tools(phone: str, user_message: str, lead_name: str = "",
 
     final_text = ""
     tokens_acc = [0, 0, 0]
+    pending_text: list[str] = []
 
     for it in range(max_tool_iters):
         def _call():
@@ -151,10 +152,13 @@ async def chat_with_tools(phone: str, user_message: str, lead_name: str = "",
 
         candidate = (response.candidates or [None])[0]
         if candidate is None:
+            logger.warning("[%s] iter=%d candidate=None", phone, it)
             break
 
+        finish = getattr(candidate, "finish_reason", None)
         content = candidate.content
         if content is None:
+            logger.warning("[%s] iter=%d content=None finish=%s", phone, it, finish)
             break
 
         function_calls: list[gtypes.FunctionCall] = []
@@ -165,17 +169,21 @@ async def chat_with_tools(phone: str, user_message: str, lead_name: str = "",
             elif getattr(part, "text", None):
                 text_parts.append(part.text)
 
-        # Se não há function call, é resposta final
+        logger.info("[%s] iter=%d fc=%d txt=%d finish=%s txt_preview=%s",
+                     phone, it, len(function_calls), len(text_parts), finish,
+                     (text_parts[0][:120] if text_parts else ""))
+
         if not function_calls:
             final_text = "\n".join(text_parts).strip()
             if final_text:
                 contents.append(content)
             break
 
-        # Append o turno do modelo (inclui as function_calls) ao contents
+        if text_parts:
+            pending_text.extend(text_parts)
+
         contents.append(content)
 
-        # Executa cada tool e adiciona function_response
         response_parts: list[gtypes.Part] = []
         for fc in function_calls:
             args = dict(fc.args or {})
@@ -186,7 +194,10 @@ async def chat_with_tools(phone: str, user_message: str, lead_name: str = "",
             )
 
         contents.append(gtypes.Content(role="user", parts=response_parts))
-        # loop continua e o modelo reage ao function_response
+
+    if not final_text and pending_text:
+        final_text = "\n".join(pending_text).strip()
+        logger.info("[%s] using pending_text as final (%d chars)", phone, len(final_text))
 
     if final_text:
         await append_chat_history(phone, "model", final_text)

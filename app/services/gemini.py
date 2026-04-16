@@ -13,7 +13,9 @@ import asyncio
 import logging
 import random
 import re
+from datetime import datetime
 from typing import Any, Callable, Optional
+from zoneinfo import ZoneInfo
 
 from google import genai
 from google.genai import errors as genai_errors
@@ -23,6 +25,34 @@ from app.config import settings
 from app.prompt import build_system_prompt
 from app.services.redis_service import append_chat_history, get_chat_history
 from app.tools import ALL_TOOLS, dispatch
+
+
+_DAYS_PT = {
+    0: "segunda-feira", 1: "terça-feira", 2: "quarta-feira",
+    3: "quinta-feira", 4: "sexta-feira", 5: "sábado", 6: "domingo",
+}
+
+
+def _current_time_sp() -> datetime:
+    """Data/hora atual no fuso America/Sao_Paulo."""
+    return datetime.now(ZoneInfo(settings.SCHEDULER_TZ))
+
+
+def _time_header() -> str:
+    """Bloco com data/hora atual para injetar no system_instruction.
+
+    Colocado no FINAL do prompt (após o PROMPT_CORE e catálogos) para que
+    o cache implícito do Gemini continue valendo sobre o prefixo estável.
+    """
+    now = _current_time_sp()
+    return (
+        "\n\n---\n\n## ⏰ DATA/HORA ATUAL (America/Sao_Paulo)\n"
+        f"**Agora:** {now.strftime('%d/%m/%Y %H:%M')} ({_DAYS_PT[now.weekday()]})\n\n"
+        "Use esta referência OBRIGATORIAMENTE para:\n"
+        "- Escolher a saudação: 'bom dia' (05:00–11:59), 'boa tarde' (12:00–17:59), "
+        "'boa noite' (18:00–23:59 e madrugada).\n"
+        "- Calcular datas relativas (hoje, amanhã, próxima sexta, etc.).\n"
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -116,42 +146,92 @@ def _usage_tokens(response: Any) -> tuple[int, int, int]:
 # ---------------- fallbacks para resposta vazia ----------------
 
 def _simplified_system_prompt() -> str:
-    """Camada 2: system prompt curto para forçar resposta textual imediata."""
+    """Camada 2: system prompt curto MAS com acesso às tools."""
+    now = _current_time_sp()
     return (
         "Você é a Zoe, assistente da Academia Seven (Seven Fitness) no WhatsApp. "
-        "Jovem, simpática e objetiva. Responda ao usuário AGORA com uma "
-        "mensagem breve e natural em português (1–3 frases). "
-        "NÃO chame ferramentas. NÃO use tags como [FINALIZADO]."
+        "Jovem, simpática e objetiva. Responda em português, de forma breve e natural.\n\n"
+        f"Data/Hora atual (America/Sao_Paulo): {now.strftime('%d/%m/%Y %H:%M')} "
+        f"({_DAYS_PT[now.weekday()]}).\n"
+        "Saudação: 'bom dia' (05–11), 'boa tarde' (12–17), 'boa noite' (18–23).\n\n"
+        "Ferramentas disponíveis — USE QUANDO FIZER SENTIDO:\n"
+        "- lista_horarios(modalidade, data): consulta vagas para aula experimental.\n"
+        "- agenda_aula(modalidade, data, hora, nome_completo): confirma o agendamento.\n"
+        "- salva_nome(nome): salva o nome do lead.\n"
+        "- classifica_contato(tipo): 'lead' ou 'aluno'.\n"
+        "- atendimento_humano(motivo): transfere para a recepção quando necessário.\n\n"
+        "Regras críticas:\n"
+        "- Se o lead pediu agendamento/horários, CHAME lista_horarios antes de responder.\n"
+        "- NUNCA mande o lead falar em outro número — você já está no WhatsApp da academia.\n"
+        "- NUNCA mencione problemas técnicos, instabilidade ou erros.\n"
+        "- Academia não atende aula experimental aos domingos."
     )
 
 
-async def _fallback_simplified_call(
-    client: "genai.Client", contents: list, phone: str
+async def _fallback_with_tools(
+    client: "genai.Client", contents: list, phone: str, max_iters: int = 2
 ) -> str:
-    """Camada 2: chamada sem tools para forçar resposta textual."""
+    """Camada 2: prompt simplificado + tools habilitadas (mini-loop próprio)."""
     config = gtypes.GenerateContentConfig(
         system_instruction=_simplified_system_prompt(),
+        tools=[ALL_TOOLS],
         temperature=0.6,
     )
 
-    def _call():
-        return client.models.generate_content(
-            model=settings.GEMINI_MODEL,
-            contents=contents,
-            config=config,
+    local_contents = list(contents)  # cópia — não polui o chat_with_tools principal
+
+    for it in range(max_iters):
+        def _call():
+            return client.models.generate_content(
+                model=settings.GEMINI_MODEL,
+                contents=local_contents,
+                config=config,
+            )
+
+        try:
+            response = await call_with_retry(
+                _call, label=f"gemini.fallback[{phone}]", max_tries=3
+            )
+        except Exception as e:
+            logger.warning("[%s] fallback com tools falhou: %s", phone, e)
+            return ""
+
+        candidate = (response.candidates or [None])[0]
+        if candidate is None or candidate.content is None:
+            return ""
+
+        function_calls: list[gtypes.FunctionCall] = []
+        text_parts: list[str] = []
+        for part in (candidate.content.parts or []):
+            if getattr(part, "function_call", None):
+                function_calls.append(part.function_call)
+            elif getattr(part, "text", None):
+                text_parts.append(part.text)
+
+        logger.info(
+            "[%s] fallback iter=%d fc=%d txt=%d", phone, it,
+            len(function_calls), len(text_parts),
         )
 
-    try:
-        response = await call_with_retry(
-            _call, label=f"gemini.fallback[{phone}]", max_tries=3
-        )
-    except Exception as e:
-        logger.warning("[%s] fallback simplificado falhou: %s", phone, e)
-        return ""
+        if not function_calls:
+            text = "\n".join(text_parts).strip()
+            logger.info("[%s] fallback com tools produziu %d chars", phone, len(text))
+            return text
 
-    text = (getattr(response, "text", None) or "").strip()
-    logger.info("[%s] fallback simplificado produziu %d chars", phone, len(text))
-    return text
+        local_contents.append(candidate.content)
+        response_parts: list[gtypes.Part] = []
+        for fc in function_calls:
+            args = dict(fc.args or {})
+            result = await dispatch(fc.name, phone, args)
+            logger.info("[%s] fallback tool %s(%s) -> %s",
+                        phone, fc.name, args, str(result)[:200])
+            response_parts.append(
+                gtypes.Part.from_function_response(name=fc.name, response=result)
+            )
+        local_contents.append(gtypes.Content(role="user", parts=response_parts))
+
+    logger.warning("[%s] fallback com tools esgotou %d iterações", phone, max_iters)
+    return ""
 
 
 _NAME_RE = re.compile(r"^[A-Za-zÀ-ÿ]{2,20}(?:\s+[A-Za-zÀ-ÿ]{2,20})?$")
@@ -183,7 +263,9 @@ async def chat_with_tools(phone: str, user_message: str, lead_name: str = "",
     contents = _history_to_contents(history)
     contents.append(gtypes.Content(role="user", parts=[gtypes.Part.from_text(text=user_message)]))
 
-    system_instruction = build_system_prompt(user_message)
+    # Prefixo (PROMPT_CORE + catálogos) fica cacheado implicitamente pelo Gemini;
+    # o _time_header() vai no final para não invalidar o cache do prefixo.
+    system_instruction = build_system_prompt(user_message) + _time_header()
     config = gtypes.GenerateContentConfig(
         system_instruction=system_instruction,
         tools=[ALL_TOOLS],
@@ -269,14 +351,14 @@ async def chat_with_tools(phone: str, user_message: str, lead_name: str = "",
         final_text = "\n".join(pending_text).strip()
         logger.info("[%s] using pending_text as final (%d chars)", phone, len(final_text))
 
-    # Camada 2: chamada simplificada sem tools (força resposta textual)
+    # Camada 2: prompt simplificado com tools habilitadas (mini-loop próprio)
     if not final_text:
-        logger.warning("[%s] todas iterações vazias — tentando fallback sem tools", phone)
-        final_text = await _fallback_simplified_call(client, contents, phone)
+        logger.warning("[%s] todas iterações vazias — tentando fallback simplificado", phone)
+        final_text = await _fallback_with_tools(client, contents, phone)
 
     # Camada 3: fallback hardcoded (garantia contratual: nunca retorna vazio)
     if not final_text:
-        logger.error("[%s] fallback simplificado também vazio — usando hardcoded", phone)
+        logger.error("[%s] fallback com tools também vazio — usando hardcoded", phone)
         final_text = _hardcoded_fallback(user_message)
 
     if final_text:

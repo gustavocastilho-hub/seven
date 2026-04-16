@@ -7,12 +7,42 @@ import logging
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
-from app.services.redis_service import get_redis
+from app.services.redis_service import get_redis, get_chat_history
+from app.db import list_all_leads
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/seven")
 
 _KEY_SUFFIX = "--seven"
+
+
+@router.get("/logs/leads")
+async def logs_leads():
+    """Retorna lista de todos os leads para o painel de logs."""
+    leads = await list_all_leads()
+    result = []
+    for lead in leads:
+        result.append({
+            "phone": lead.get("phone", ""),
+            "nome": lead.get("nome"),
+            "nicho": lead.get("status"),
+            "msg_count": 0,  # TODO: contar mensagens do histórico
+            "resumo": None
+        })
+    return result
+
+
+@router.get("/logs/history/{phone}")
+async def logs_history(phone: str):
+    """Retorna histórico de chat de um lead para o painel de logs."""
+    history = await get_chat_history(phone)
+    result = []
+    for entry in history:
+        if "role" in entry and "parts" in entry:
+            role = "ai" if entry["role"] == "model" else "human"
+            text = entry.get("parts", [{}])[0].get("text", "")
+            result.append({"role": role, "content": text})
+    return result
 
 
 @router.get("/logs/events")

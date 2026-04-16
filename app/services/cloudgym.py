@@ -10,12 +10,14 @@ Endpoints v2: /v1/member (listagem/busca de alunos)
 """
 import asyncio
 import logging
+import re
 from datetime import date, datetime, timedelta
 from typing import Any, Optional
 
 import httpx
 
 from app.config import settings
+from app.data.class_catalog import TRIAL_PLAN_EXT_ID
 from app.services import redis_service as rds
 
 logger = logging.getLogger(__name__)
@@ -24,6 +26,10 @@ _V1_TOKEN_KEY = "cg:v1:token"
 _V2_TOKEN_KEY = "cg:v2:token"
 
 _client: httpx.AsyncClient | None = None
+
+# Fallback in-process quando Redis está indisponível. Mantém tokens em memória
+# até o expiry, evitando bater em /auth/token a cada chamada.
+_mem_token_cache: dict[str, tuple[str, float]] = {}
 
 
 def _get_client() -> httpx.AsyncClient:
@@ -36,8 +42,30 @@ def _get_client() -> httpx.AsyncClient:
     return _client
 
 
+async def _cache_get(key: str) -> str | None:
+    import time
+    cached = _mem_token_cache.get(key)
+    if cached and cached[1] > time.time():
+        return cached[0]
+    try:
+        val = await rds.cache_get(key)
+        return val
+    except Exception as e:
+        logger.debug("Redis cache_get falhou (%s=%s) — seguindo com memória", key, e)
+        return None
+
+
+async def _cache_set(key: str, value: str, ttl: int) -> None:
+    import time
+    _mem_token_cache[key] = (value, time.time() + ttl)
+    try:
+        await rds.cache_set(key, value, ttl)
+    except Exception as e:
+        logger.debug("Redis cache_set falhou (%s) — só memória: %s", key, e)
+
+
 async def _get_v1_token() -> str:
-    cached = await rds.cache_get(_V1_TOKEN_KEY)
+    cached = await _cache_get(_V1_TOKEN_KEY)
     if cached:
         return cached
 
@@ -53,27 +81,27 @@ async def _get_v1_token() -> str:
     token = data.get("access_token") or data.get("token") or ""
     expires_in = int(data.get("expires_in") or 600)
     if token:
-        await rds.cache_set(_V1_TOKEN_KEY, token, ttl=max(60, expires_in - 30))
+        await _cache_set(_V1_TOKEN_KEY, token, ttl=max(60, expires_in - 30))
     return token
 
 
 async def _get_v2_token() -> str:
-    cached = await rds.cache_get(_V2_TOKEN_KEY)
+    cached = await _cache_get(_V2_TOKEN_KEY)
     if cached:
         return cached
 
+    # CloudGym v2: POST /auth com Basic Auth (username/password como credenciais HTTP Basic),
+    # corpo vazio. Resposta: {"success": true, "accessToken": "..."}.
     url = f"{settings.CLOUDGYM_V2_BASE}/auth"
-    payload = {
-        "username": settings.CLOUDGYM_V2_USERNAME,
-        "password": settings.CLOUDGYM_V2_PASSWORD,
-    }
     client = _get_client()
-    resp = await _request_with_retry(client, "POST", url, json=payload)
+    resp = await _request_with_retry(
+        client, "POST", url, auth=(settings.CLOUDGYM_V2_USERNAME, settings.CLOUDGYM_V2_PASSWORD)
+    )
     data = resp.json()
-    token = data.get("token") or data.get("access_token") or ""
+    token = data.get("accessToken") or data.get("token") or data.get("access_token") or ""
     expires_in = int(data.get("expires_in") or 3600)
     if token:
-        await rds.cache_set(_V2_TOKEN_KEY, token, ttl=max(60, expires_in - 30))
+        await _cache_set(_V2_TOKEN_KEY, token, ttl=max(60, expires_in - 30))
     return token
 
 
@@ -85,12 +113,13 @@ async def _request_with_retry(
     headers: Optional[dict] = None,
     params: Optional[dict] = None,
     json: Any = None,
+    auth: Any = None,
     max_retries: int = 3,
 ) -> httpx.Response:
     last_exc: Exception | None = None
     for attempt in range(max_retries):
         try:
-            resp = await client.request(method, url, headers=headers, params=params, json=json)
+            resp = await client.request(method, url, headers=headers, params=params, json=json, auth=auth)
             if resp.status_code >= 500:
                 raise httpx.HTTPStatusError(
                     f"Server error {resp.status_code}", request=resp.request, response=resp
@@ -132,28 +161,111 @@ async def _v2_get(path: str, params: Optional[dict] = None) -> dict:
 
 # ---------------- v1 (agendamento/aulas) ----------------
 
-async def list_classes() -> list[dict]:
-    data = await _v1_get(f"/config/classes/{settings.CLOUDGYM_UNIT_ID}")
+_CLASSES_CACHE_KEY = "cg:v1:classes"
+
+
+async def list_classes(force: bool = False) -> list[dict]:
+    """Catálogo de aulas da unidade. Paginado (chave 'content'). Cache Redis 1h.
+
+    Retorna cada item com: id, name, time (HH:mm:ss), endTime, capacity, unit.
+    """
+    if not force:
+        try:
+            cached = await rds.cache_get(_CLASSES_CACHE_KEY)
+            if cached:
+                import json as _json
+                return _json.loads(cached)
+        except Exception:
+            pass
+
+    data = await _v1_get(f"/config/classes/{settings.CLOUDGYM_UNIT_ID}", params={"size": 500, "page": 0})
     if isinstance(data, list):
-        return data
-    return data.get("items") or data.get("data") or []
+        items = data
+    else:
+        items = data.get("content") or data.get("items") or data.get("data") or []
+
+    try:
+        import json as _json
+        await rds.cache_set(_CLASSES_CACHE_KEY, _json.dumps(items), ttl=3600)
+    except Exception:
+        pass
+    return items
 
 
 async def get_class_availability(data_yyyy_mm_dd: str, class_id: str) -> dict:
     return await _v1_get(f"/admin/classattendancelist/{settings.CLOUDGYM_UNIT_ID}/{data_yyyy_mm_dd}/{class_id}")
 
 
-async def create_attendance(payload: dict) -> dict:
-    return await _v1_post("/v1/classattendance", payload)
+async def create_attendance_v2(memberid: int | str, date_yyyy_mm_dd: str, class_id: int | str) -> dict:
+    """Cria agendamento de aula experimental.
+
+    Endpoint: POST api.cloudgym.io/v1/classattendance (host v2 + token v2).
+    Payload: {memberid, date, class_id}. Response: [{id: "..."}].
+    """
+    token = await _get_v2_token()
+    url = f"{settings.CLOUDGYM_ATTENDANCE_BASE}/v1/classattendance"
+    headers = {"accept": "application/json", "Authorization": f"Bearer {token}"}
+    payload = {
+        "memberid": int(memberid),
+        "date": date_yyyy_mm_dd,
+        "class_id": int(class_id),
+    }
+    resp = await _request_with_retry(_get_client(), "POST", url, headers=headers, json=payload)
+    try:
+        return resp.json()
+    except Exception:
+        return {"status_code": resp.status_code, "text": resp.text}
 
 
-async def create_customer(payload: dict) -> dict:
+async def create_customer(name: str, phone_digits: str) -> dict:
+    """Cadastra cliente novo (plano trial). Payload conforme n8n (fluxo n8n linhas 119-149)."""
+    payload = {
+        "name": name,
+        "cellPhoneNumber": phone_digits,
+        "planExtId": TRIAL_PLAN_EXT_ID,
+        "installments": "1",
+        "installreg": "1",
+        "installman": "1",
+        "methodPayment": "DN",
+    }
     return await _v1_post("/customer", payload)
 
 
 # ---------------- v2 (membros) ----------------
 
+def format_phone_br(digits: str) -> str:
+    """Normaliza celular BR para o formato aceito pela CloudGym.
+
+    A v2 /v1/member?phone= aceita apenas dígitos (sem '+'). Telefones
+    armazenados pela CloudGym têm 13 dígitos (DDI+DDD+9+numero). Se a entrada
+    tiver 12 dígitos (DDD+numero sem o 9), insere o 9.
+
+    Ex: 554132811234  -> 5541932811234
+         5541998765432 -> 5541998765432 (inalterado)
+    """
+    only_digits = "".join(c for c in (digits or "") if c.isdigit())
+    m = re.fullmatch(r"(\d{4})(\d{8})", only_digits)
+    if m:
+        return f"{m.group(1)}9{m.group(2)}"
+    return only_digits
+
+
+async def find_member_by_phone(phone_digits: str) -> list[dict]:
+    """Busca membro por telefone. Tenta com e sem '+' (produção tem os dois formatos)."""
+    formatted = format_phone_br(phone_digits)
+    # Tenta sem '+' (formato usado ao cadastrar via create_customer)
+    data = await _v2_get("/v1/member", params={"phone": formatted})
+    items = data if isinstance(data, list) else (data.get("items") or data.get("data") or [])
+    if items:
+        return items
+    # Fallback: com '+' (caso antigo / n8n)
+    data = await _v2_get("/v1/member", params={"phone": f"+{formatted}"})
+    items = data if isinstance(data, list) else (data.get("items") or data.get("data") or [])
+    return items
+
+
 async def find_member(query: str) -> list[dict]:
+    """Busca livre (compat com followups/scheduler)."""
     data = await _v2_get("/v1/member", params={"search": query})
     if isinstance(data, list):
         return data

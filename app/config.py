@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     CLOUDGYM_V2_USERNAME: str = ""
     CLOUDGYM_V2_PASSWORD: str = ""
     CLOUDGYM_PROXY: str = ""
+    # Host usado para POST /v1/classattendance. O fluxo n8n aponta para o host v2
+    # mesmo usando token v1. O script scripts/test_cloudgym.py tenta ambos e
+    # deixa configurado aqui o que respondeu 2xx.
+    CLOUDGYM_ATTENDANCE_BASE: str = "https://api.cloudgym.io"
 
     # Google Sheets
     GOOGLE_CREDENTIALS_JSON: str = ""

@@ -9,12 +9,13 @@ build/
 venv/
 *.log
 *.db
-data/
+/data/
 
 # Arquivos de referência do n8n (contêm credenciais — nunca commitar)
 seven.json
 Follow UP seven.json
 RabbitMQ - seven.json
+agenda horario seven.json
 CLIENTES.md
 
 # Claude Code settings locais

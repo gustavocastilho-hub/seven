@@ -1,0 +1,694 @@
+{
+  "22241580": {
+    "modalidade_api": "MUAY THAI",
+    "modalidade": "Muay Thai Feminino",
+    "canonico": "muay_thai",
+    "hora": "06:00",
+    "capacity": 18,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Terça"
+    ]
+  },
+  "22775332": {
+    "modalidade_api": "SEVEN BIKE",
+    "modalidade": "Seven Bike",
+    "canonico": "seven_bike",
+    "hora": "06:00",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "17468573": {
+    "modalidade_api": "MUAY THAI",
+    "modalidade": "Muay Thai Feminino",
+    "canonico": "muay_thai",
+    "hora": "06:00",
+    "capacity": 18,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Terça"
+    ]
+  },
+  "17468232": {
+    "modalidade_api": "SEVEN CROSS",
+    "modalidade": "Seven Cross",
+    "canonico": "seven_cross",
+    "hora": "06:00",
+    "capacity": 12,
+    "weekdays_grade": [
+      "Quarta",
+      "Segunda",
+      "Sexta"
+    ]
+  },
+  "22775331": {
+    "modalidade_api": "SEVEN BIKE",
+    "modalidade": "Seven Bike",
+    "canonico": "seven_bike",
+    "hora": "06:00",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "17468234": {
+    "modalidade_api": "SEVEN CROSS",
+    "modalidade": "Seven Cross",
+    "canonico": "seven_cross",
+    "hora": "06:00",
+    "capacity": 12,
+    "weekdays_grade": [
+      "Quarta",
+      "Segunda",
+      "Sexta"
+    ]
+  },
+  "22230667": {
+    "modalidade_api": "SEVEN CROSS",
+    "modalidade": "Seven Cross",
+    "canonico": "seven_cross",
+    "hora": "06:00",
+    "capacity": 12,
+    "weekdays_grade": [
+      "Quarta",
+      "Segunda",
+      "Sexta"
+    ]
+  },
+  "18395067": {
+    "modalidade_api": "SEVEN PUMP",
+    "modalidade": "Seven Pump",
+    "canonico": "seven_pump",
+    "hora": "07:00",
+    "capacity": 25,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "9968306": {
+    "modalidade_api": "SEVEN PUMP",
+    "modalidade": "Seven Pump",
+    "canonico": "seven_pump",
+    "hora": "07:00",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "22775346": {
+    "modalidade_api": "SEVEN BIKE",
+    "modalidade": "Seven Bike",
+    "canonico": "seven_bike",
+    "hora": "07:00",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "22775347": {
+    "modalidade_api": "SEVEN BIKE",
+    "modalidade": "Seven Bike",
+    "canonico": "seven_bike",
+    "hora": "07:00",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "22775348": {
+    "modalidade_api": "SEVEN BIKE",
+    "modalidade": "Seven Bike",
+    "canonico": "seven_bike",
+    "hora": "07:00",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "18713494": {
+    "modalidade_api": "MUAY THAI",
+    "modalidade": "Muay Thai Feminino",
+    "canonico": "muay_thai",
+    "hora": "08:00",
+    "capacity": 18,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Terça"
+    ]
+  },
+  "18713493": {
+    "modalidade_api": "MUAY THAI",
+    "modalidade": "Muay Thai Feminino",
+    "canonico": "muay_thai",
+    "hora": "08:00",
+    "capacity": 18,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Terça"
+    ]
+  },
+  "22775399": {
+    "modalidade_api": "SEVEN BIKE",
+    "modalidade": "Seven Bike",
+    "canonico": "seven_bike",
+    "hora": "08:15",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "18433531": {
+    "modalidade_api": "SEVEN PUMP",
+    "modalidade": "Seven Pump",
+    "canonico": "seven_pump",
+    "hora": "08:15",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "17540216": {
+    "modalidade_api": "SEVEN PUMP",
+    "modalidade": "Seven Pump",
+    "canonico": "seven_pump",
+    "hora": "08:15",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "22775400": {
+    "modalidade_api": "SEVEN BIKE",
+    "modalidade": "Seven Bike",
+    "canonico": "seven_bike",
+    "hora": "08:15",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "17482885": {
+    "modalidade_api": "SEVEN PUMP",
+    "modalidade": "Seven Pump",
+    "canonico": "seven_pump",
+    "hora": "08:15",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "23579965": {
+    "modalidade_api": "BIKE MOVE",
+    "modalidade": "Bike Move",
+    "canonico": "bike_move",
+    "hora": "09:00",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quinta",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "23579959": {
+    "modalidade_api": "SEVEN CROSS",
+    "modalidade": "Seven Cross",
+    "canonico": "seven_cross",
+    "hora": "09:00",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Segunda",
+      "Sexta"
+    ]
+  },
+  "23321895": {
+    "modalidade_api": "MUAY THAI",
+    "modalidade": "Muay Thai Feminino",
+    "canonico": "muay_thai",
+    "hora": "15:00",
+    "capacity": 18,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Terça"
+    ]
+  },
+  "23321894": {
+    "modalidade_api": "MUAY THAI",
+    "modalidade": "Muay Thai Feminino",
+    "canonico": "muay_thai",
+    "hora": "15:00",
+    "capacity": 18,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Terça"
+    ]
+  },
+  "17468415": {
+    "modalidade_api": "SEVEN CROSS",
+    "modalidade": "Seven Cross",
+    "canonico": "seven_cross",
+    "hora": "16:15",
+    "capacity": 12,
+    "weekdays_grade": [
+      "Quarta",
+      "Segunda",
+      "Sexta"
+    ]
+  },
+  "18957362": {
+    "modalidade_api": "SEVEN CROSS",
+    "modalidade": "Seven Cross",
+    "canonico": "seven_cross",
+    "hora": "16:15",
+    "capacity": 12,
+    "weekdays_grade": [
+      "Quarta",
+      "Segunda",
+      "Sexta"
+    ]
+  },
+  "18957361": {
+    "modalidade_api": "SEVEN CROSS",
+    "modalidade": "Seven Cross",
+    "canonico": "seven_cross",
+    "hora": "16:15",
+    "capacity": 12,
+    "weekdays_grade": [
+      "Quarta",
+      "Segunda",
+      "Sexta"
+    ]
+  },
+  "17468401": {
+    "modalidade_api": "FITDANCE",
+    "modalidade": "Fit Dance",
+    "canonico": "fitdance",
+    "hora": "17:00",
+    "capacity": 25,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Terça"
+    ]
+  },
+  "17468402": {
+    "modalidade_api": "FITDANCE",
+    "modalidade": "Fit Dance",
+    "canonico": "fitdance",
+    "hora": "17:00",
+    "capacity": 25,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Terça"
+    ]
+  },
+  "22775415": {
+    "modalidade_api": "SEVEN BIKE",
+    "modalidade": "Seven Bike",
+    "canonico": "seven_bike",
+    "hora": "17:15",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "22775414": {
+    "modalidade_api": "SEVEN BIKE",
+    "modalidade": "Seven Bike",
+    "canonico": "seven_bike",
+    "hora": "17:15",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "9968301": {
+    "modalidade_api": "SEVEN PUMP",
+    "modalidade": "Seven Pump",
+    "canonico": "seven_pump",
+    "hora": "17:15",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "17586251": {
+    "modalidade_api": "SEVEN PUMP",
+    "modalidade": "Seven Pump",
+    "canonico": "seven_pump",
+    "hora": "17:15",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "18713528": {
+    "modalidade_api": "MUAY THAI",
+    "modalidade": "Muay Thai Feminino",
+    "canonico": "muay_thai",
+    "hora": "17:15",
+    "capacity": 18,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Terça"
+    ]
+  },
+  "18713529": {
+    "modalidade_api": "MUAY THAI",
+    "modalidade": "Muay Thai Feminino",
+    "canonico": "muay_thai",
+    "hora": "17:15",
+    "capacity": 16,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Terça"
+    ]
+  },
+  "17586252": {
+    "modalidade_api": "SEVEN PUMP",
+    "modalidade": "Seven Pump",
+    "canonico": "seven_pump",
+    "hora": "17:15",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "19235802": {
+    "modalidade_api": "MUAY THAI KIDS",
+    "modalidade": "Muay Thai Kids",
+    "canonico": "muay_thai_kids",
+    "hora": "18:00",
+    "capacity": 0,
+    "weekdays_grade": [
+      "Quarta",
+      "Segunda"
+    ]
+  },
+  "19235803": {
+    "modalidade_api": "MUAY THAI KIDS",
+    "modalidade": "Muay Thai Kids",
+    "canonico": "muay_thai_kids",
+    "hora": "18:00",
+    "capacity": 0,
+    "weekdays_grade": [
+      "Quarta",
+      "Segunda"
+    ]
+  },
+  "18713540": {
+    "modalidade_api": "MUAY THAI",
+    "modalidade": "Muay Thai Feminino",
+    "canonico": "muay_thai",
+    "hora": "18:15",
+    "capacity": 18,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Terça"
+    ]
+  },
+  "18713539": {
+    "modalidade_api": "MUAY THAI",
+    "modalidade": "Muay Thai Feminino",
+    "canonico": "muay_thai",
+    "hora": "18:15",
+    "capacity": 18,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Terça"
+    ]
+  },
+  "22775487": {
+    "modalidade_api": "BIKE MOVE",
+    "modalidade": "Bike Move",
+    "canonico": "bike_move",
+    "hora": "18:30",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quinta",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "17468694": {
+    "modalidade_api": "SEVEN CROSS",
+    "modalidade": "Seven Cross",
+    "canonico": "seven_cross",
+    "hora": "18:30",
+    "capacity": 12,
+    "weekdays_grade": [
+      "Quarta",
+      "Segunda",
+      "Sexta"
+    ]
+  },
+  "22775437": {
+    "modalidade_api": "SEVEN BIKE",
+    "modalidade": "Seven Bike",
+    "canonico": "seven_bike",
+    "hora": "18:30",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "22775436": {
+    "modalidade_api": "SEVEN BIKE",
+    "modalidade": "Seven Bike",
+    "canonico": "seven_bike",
+    "hora": "18:30",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "9968407": {
+    "modalidade_api": "SEVEN PUMP",
+    "modalidade": "Seven Pump",
+    "canonico": "seven_pump",
+    "hora": "18:30",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "17468695": {
+    "modalidade_api": "SEVEN CROSS",
+    "modalidade": "Seven Cross",
+    "canonico": "seven_cross",
+    "hora": "18:30",
+    "capacity": 12,
+    "weekdays_grade": [
+      "Quarta",
+      "Segunda",
+      "Sexta"
+    ]
+  },
+  "18399314": {
+    "modalidade_api": "SEVEN PUMP",
+    "modalidade": "Seven Pump",
+    "canonico": "seven_pump",
+    "hora": "18:30",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "21730459": {
+    "modalidade_api": "SEVEN CROSS",
+    "modalidade": "Seven Cross",
+    "canonico": "seven_cross",
+    "hora": "18:30",
+    "capacity": 12,
+    "weekdays_grade": [
+      "Quarta",
+      "Segunda",
+      "Sexta"
+    ]
+  },
+  "18713514": {
+    "modalidade_api": "MUAY THAI",
+    "modalidade": "Muay Thai Feminino",
+    "canonico": "muay_thai",
+    "hora": "19:00",
+    "capacity": 18,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Terça"
+    ]
+  },
+  "18713515": {
+    "modalidade_api": "MUAY THAI",
+    "modalidade": "Muay Thai Feminino",
+    "canonico": "muay_thai",
+    "hora": "19:00",
+    "capacity": 18,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Terça"
+    ]
+  },
+  "22775474": {
+    "modalidade_api": "BIKE MOVE",
+    "modalidade": "Bike Move",
+    "canonico": "bike_move",
+    "hora": "19:30",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quinta",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "22775473": {
+    "modalidade_api": "BIKE MOVE",
+    "modalidade": "Bike Move",
+    "canonico": "bike_move",
+    "hora": "19:30",
+    "capacity": 20,
+    "weekdays_grade": [
+      "Quinta",
+      "Sexta",
+      "Terça"
+    ]
+  },
+  "17468616": {
+    "modalidade_api": "FITDANCE",
+    "modalidade": "Fit Dance",
+    "canonico": "fitdance",
+    "hora": "20:00",
+    "capacity": 25,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Terça"
+    ]
+  },
+  "17468617": {
+    "modalidade_api": "FITDANCE",
+    "modalidade": "Fit Dance",
+    "canonico": "fitdance",
+    "hora": "20:00",
+    "capacity": 25,
+    "weekdays_grade": [
+      "Quarta",
+      "Quinta",
+      "Segunda",
+      "Terça"
+    ]
+  }
+}

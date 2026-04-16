@@ -36,13 +36,29 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Trigger Portainer redeploy
+      - name: Trigger Portainer redeploy (all services)
         if: success()
         env:
-          PORTAINER_WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL }}
+          PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
+          PORTAINER_TOKEN: ${{ secrets.PORTAINER_TOKEN }}
+          SERVICES: seven_seven-api seven_seven-worker seven_seven-scheduler
         run: |
-          if [ -z "$PORTAINER_WEBHOOK_URL" ]; then
-            echo "PORTAINER_WEBHOOK_URL not set, skipping redeploy."
+          if [ -z "$PORTAINER_URL" ] || [ -z "$PORTAINER_TOKEN" ]; then
+            echo "PORTAINER_URL or PORTAINER_TOKEN not set, skipping redeploy."
             exit 0
           fi
-          curl -fsSLk -X POST "$PORTAINER_WEBHOOK_URL"
+          for SVC_NAME in $SERVICES; do
+            echo "Updating $SVC_NAME..."
+            SVC=$(curl -fsSLk -H "X-API-Key: $PORTAINER_TOKEN" \
+              "$PORTAINER_URL/api/endpoints/1/docker/services" \
+              | jq -r ".[] | select(.Spec.Name==\"$SVC_NAME\")")
+            SVC_ID=$(echo "$SVC" | jq -r '.ID')
+            VER=$(echo "$SVC" | jq -r '.Version.Index')
+            SPEC=$(echo "$SVC" | jq '.Spec | .TaskTemplate.ForceUpdate += 1')
+            curl -fsSLk -X POST \
+              -H "X-API-Key: $PORTAINER_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$SPEC" \
+              "$PORTAINER_URL/api/endpoints/1/docker/services/$SVC_ID/update?version=$VER"
+            echo " -> $SVC_NAME updated"
+          done

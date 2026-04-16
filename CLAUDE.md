@@ -82,7 +82,7 @@ O processo de redeploy deste projeto é sempre:
 1. Criar tarball: `tar -czf /tmp/build-context.tar.gz --exclude='.git' --exclude='node_modules' --exclude='.env' .`
 2. Build via Portainer API (endpoint `1`, tag `ghcr.io/gustavocastilho-hub/seven:latest`)
 3. Force-update dos 3 serviços Swarm incrementando `TaskTemplate.ForceUpdate`
-4. Verificar HTTP 200 em `https://webhook-whatsapp.strategicai.com.br/seven/health`
+4. Verificar HTTP 200 em `https://webhook-whatsapp.strategicai.com.br/health` (o path `/seven` é POST-only — é o webhook da Uazapi)
 5. Verificar containers rodando via `docker service ps seven_seven-api` etc.
    - Se algum estado ≠ `running`, ler logs com `docker service logs seven_seven-worker --tail 50` e corrigir antes de encerrar.
 

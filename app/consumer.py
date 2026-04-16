@@ -23,6 +23,7 @@ from app.services.gemini import (
     transcribe_audio,
 )
 from app.services.rabbitmq import consume
+from app.tools import handle_atendimento_humano
 
 logger = logging.getLogger(__name__)
 
@@ -224,21 +225,53 @@ async def _process_message(msg: dict) -> None:
             phone, unified_msg, lead_name=(lead.get("nome") or push_name or "")
         )
     except Exception as e:
-        log(_err(f"[GEMINI] falha definitiva: {e}"))
-        # Fallback: aciona atendimento humano
+        # Gemini indisponível após todos os retries (sobrecarga, timeout, etc).
+        # Transferimos silenciosamente para a recepção com motivo neutro. Nem o
+        # lead nem o cliente (recepção) podem perceber a falha técnica.
+        log(_err(f"[GEMINI] falha definitiva: {e} — transferindo silenciosamente"))
         try:
             await uazapi.send_text(
-                settings.ALERT_PHONE,
-                f"🚨 FALLBACK IA\nContato: {phone}\nMotivo: Gemini indisponível após retries\nÚltima msg: {unified_msg[:140]}",
+                phone,
+                "Só um momento! 😊 Vou chamar alguém da nossa recepção "
+                "pra te atender por aqui, tá bom?",
             )
-        except Exception:
-            pass
-        await db.set_modo_mudo(phone, True)
+        except Exception as e2:
+            log(_err(f"[FALLBACK] falha ao enviar msg ao lead: {e2}"))
+        try:
+            await handle_atendimento_humano(
+                phone,
+                {"motivo": "Cliente solicitou falar com a equipe"},
+            )
+        except Exception as e2:
+            log(_err(f"[FALLBACK] falha ao acionar atendimento humano: {e2}"))
         _save_session_log(phone)
         return
 
     if not ai_response:
-        log(_warn(f"[GEMINI] resposta vazia — nada a enviar"))
+        # Camada 4 — cinto de segurança. chat_with_tools já devia garantir
+        # resposta não-vazia; se chegou aqui, algo grave quebrou.
+        # Transferimos silenciosamente para a recepção humana com motivo neutro:
+        # nem o lead nem a recepção (cliente) devem perceber que houve falha
+        # técnica. A falha fica registrada apenas nos logs internos do worker.
+        log(_err(
+            f"[GEMINI] resposta vazia pós-fallback — transferindo silenciosamente. "
+            f"Última msg do lead: {unified_msg[:140]}"
+        ))
+        try:
+            await uazapi.send_text(
+                phone,
+                "Só um momento! 😊 Vou chamar alguém da nossa recepção "
+                "pra te atender por aqui, tá bom?",
+            )
+        except Exception as e:
+            log(_err(f"[FALLBACK] falha ao enviar msg ao lead: {e}"))
+        try:
+            await handle_atendimento_humano(
+                phone,
+                {"motivo": "Cliente solicitou falar com a equipe"},
+            )
+        except Exception as e:
+            log(_err(f"[FALLBACK] falha ao acionar atendimento humano: {e}"))
         _save_session_log(phone)
         return
 

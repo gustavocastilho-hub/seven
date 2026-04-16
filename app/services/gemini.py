@@ -12,6 +12,7 @@ Wrapper do Gemini 2.5 Flash usando o novo SDK `google-genai`.
 import asyncio
 import logging
 import random
+import re
 from typing import Any, Callable, Optional
 
 from google import genai
@@ -112,6 +113,66 @@ def _usage_tokens(response: Any) -> tuple[int, int, int]:
     return (inp, out, total)
 
 
+# ---------------- fallbacks para resposta vazia ----------------
+
+def _simplified_system_prompt() -> str:
+    """Camada 2: system prompt curto para forçar resposta textual imediata."""
+    return (
+        "Você é a Zoe, assistente da Academia Seven (Seven Fitness) no WhatsApp. "
+        "Jovem, simpática e objetiva. Responda ao usuário AGORA com uma "
+        "mensagem breve e natural em português (1–3 frases). "
+        "NÃO chame ferramentas. NÃO use tags como [FINALIZADO]."
+    )
+
+
+async def _fallback_simplified_call(
+    client: "genai.Client", contents: list, phone: str
+) -> str:
+    """Camada 2: chamada sem tools para forçar resposta textual."""
+    config = gtypes.GenerateContentConfig(
+        system_instruction=_simplified_system_prompt(),
+        temperature=0.6,
+    )
+
+    def _call():
+        return client.models.generate_content(
+            model=settings.GEMINI_MODEL,
+            contents=contents,
+            config=config,
+        )
+
+    try:
+        response = await call_with_retry(
+            _call, label=f"gemini.fallback[{phone}]", max_tries=3
+        )
+    except Exception as e:
+        logger.warning("[%s] fallback simplificado falhou: %s", phone, e)
+        return ""
+
+    text = (getattr(response, "text", None) or "").strip()
+    logger.info("[%s] fallback simplificado produziu %d chars", phone, len(text))
+    return text
+
+
+_NAME_RE = re.compile(r"^[A-Za-zÀ-ÿ]{2,20}(?:\s+[A-Za-zÀ-ÿ]{2,20})?$")
+
+
+def _hardcoded_fallback(user_message: str) -> str:
+    """Camada 3: resposta natural (sem revelar falha técnica)."""
+    msg = (user_message or "").strip()
+    if _NAME_RE.match(msg):
+        nome = msg.split()[0].capitalize()
+        return (
+            f"[FINALIZADO=0] Prazer, {nome}! 😃\n\n"
+            "Me conta, o que você gostaria de saber sobre a Academia Seven?"
+        )
+    return (
+        "[FINALIZADO=0] Oi! 😊\n\n"
+        "Me conta um pouco mais sobre o que você está buscando? "
+        "Posso te ajudar com informações sobre modalidades, valores e horários!"
+    )
+
+
 # ---------------- chat principal com tools ----------------
 
 async def chat_with_tools(phone: str, user_message: str, lead_name: str = "",
@@ -134,6 +195,7 @@ async def chat_with_tools(phone: str, user_message: str, lead_name: str = "",
     final_text = ""
     tokens_acc = [0, 0, 0]
     pending_text: list[str] = []
+    empty_retries = 0
 
     for it in range(max_tool_iters):
         def _call():
@@ -177,6 +239,14 @@ async def chat_with_tools(phone: str, user_message: str, lead_name: str = "",
             final_text = "\n".join(text_parts).strip()
             if final_text:
                 contents.append(content)
+                break
+            # Resposta vazia (sem text e sem tool call) — Gemini thinking pode
+            # retornar apenas partes de raciocínio sem output real. Retry.
+            if not pending_text and empty_retries < 2:
+                empty_retries += 1
+                logger.warning("[%s] iter=%d resposta vazia (retry %d/2), reenviando",
+                               phone, it, empty_retries)
+                continue
             break
 
         if text_parts:
@@ -198,6 +268,16 @@ async def chat_with_tools(phone: str, user_message: str, lead_name: str = "",
     if not final_text and pending_text:
         final_text = "\n".join(pending_text).strip()
         logger.info("[%s] using pending_text as final (%d chars)", phone, len(final_text))
+
+    # Camada 2: chamada simplificada sem tools (força resposta textual)
+    if not final_text:
+        logger.warning("[%s] todas iterações vazias — tentando fallback sem tools", phone)
+        final_text = await _fallback_simplified_call(client, contents, phone)
+
+    # Camada 3: fallback hardcoded (garantia contratual: nunca retorna vazio)
+    if not final_text:
+        logger.error("[%s] fallback simplificado também vazio — usando hardcoded", phone)
+        final_text = _hardcoded_fallback(user_message)
 
     if final_text:
         await append_chat_history(phone, "model", final_text)

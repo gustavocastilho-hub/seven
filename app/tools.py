@@ -447,13 +447,17 @@ async def handle_agenda_aula(phone: str, args: dict) -> dict:
     # Notifica recepção
     try:
         mod_display = modalidade or catalog.get_class_meta(class_id).get("modalidade", "?")
+        try:
+            from datetime import datetime as _dt
+            data_fmt = _dt.strptime(data_str, "%Y-%m-%d").strftime("%d/%m/%Y")
+        except Exception:
+            data_fmt = data_str
         alert_text = (
             f"\U0001f4c5 NOVA AULA EXPERIMENTAL\n"
             f"Modalidade: {mod_display}\n"
-            f"Data/Hora: {data_str} {hora or '?'}\n"
+            f"Data/Hora: {data_fmt} {hora or '?'}\n"
             f"Aluno: {nome_completo or '(já cadastrado)'}\n"
-            f"Telefone: {phone}\n"
-            f"MemberId: {memberid} | ClassId: {class_id}"
+            f"Telefone: {phone}"
         )
         await uazapi.send_text(settings.ALERT_PHONE, alert_text)
     except Exception as e:

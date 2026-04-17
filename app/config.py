@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     RABBITMQ_USER: str = "guest"
     RABBITMQ_PASS: str = "guest"
     RABBITMQ_VHOST: str = "default"
-    RABBITMQ_QUEUE: str = "seven"
+    RABBITMQ_QUEUE: str = "seven-claude"
 
     # Redis
     REDIS_HOST: str = "91.98.64.92"

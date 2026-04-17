@@ -67,8 +67,6 @@ async def webhook(request: Request):
         return {"status": "ignored", "reason": "phone not in whitelist"}
 
     # /reset instantâneo — processa antes da fila para não esperar debounce
-    if phone in RESET_PHONES:
-        logger.info("[DEBUG-RESET] phone=%s text=%r from_me=%s msg_type_raw=%s", phone, text, from_me, msg_type_raw)
     if phone in RESET_PHONES and text.strip().lower() == "/reset":
         await rds.clear_chat_history(phone)
         await db.upsert_lead(phone, modo_mudo=0, status_conversa="novo",

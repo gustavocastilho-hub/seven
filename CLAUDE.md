@@ -28,7 +28,7 @@ Isso inclui:
 | **Image tag** | `ghcr.io/gustavocastilho-hub/seven:latest` |
 | **Services** | `seven_seven-api`, `seven_seven-worker`, `seven_seven-scheduler` |
 | **Credenciais** | `clientes/seven/.env` |
-| **RabbitMQ queue** | `seven` |
+| **RabbitMQ queue** | `seven-claude` |
 | **Volume SQLite** | `seven_sqlite` montado em `/data` |
 
 ## Arquitetura

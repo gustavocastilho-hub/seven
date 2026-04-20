@@ -14,7 +14,7 @@ from app.services.rabbitmq import publish
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-RESET_PHONES = {"5511989887525"}
+RESET_PHONES = {"5511989887525", "554384470068"}
 
 
 @router.post(settings.WEBHOOK_PATH)

@@ -129,13 +129,8 @@ async def _process_message(msg: dict) -> None:
         logger.warning("[RECV] ignorado grupo: chat_id=%r", chat_id)
         return
 
-    # Modo mudo: após atendimento_humano, pula Gemini e responde [FINALIZADO=1] local
-    if await db.is_modo_mudo(phone):
-        log(_warn(f"[{phone}] modo_mudo ativo — silêncio (atendimento humano assumiu)"))
-        _save_session_log(phone)
-        return
-
-    # Comando /reset
+    # Comando /reset — precedência MÁXIMA (roda antes de modo_mudo para
+    # garantir que seja sempre possível sair de um atendimento humano).
     if msg_type in TEXT_TYPES and (msg_text or "").strip().lower() == "/reset":
         await rds.clear_chat_history(phone)
         await db.upsert_lead(phone, nome=None, modo_mudo=0, status_conversa="novo",
@@ -146,6 +141,12 @@ async def _process_message(msg: dict) -> None:
             await uazapi.send_text(phone, "Conversa reiniciada.")
         except Exception as e:
             log(_err(f"[{phone}] Falha ao confirmar reset: {e}"))
+        _save_session_log(phone)
+        return
+
+    # Modo mudo: após atendimento_humano, pula Gemini e responde [FINALIZADO=1] local
+    if await db.is_modo_mudo(phone):
+        log(_warn(f"[{phone}] modo_mudo ativo — silêncio (atendimento humano assumiu)"))
         _save_session_log(phone)
         return
 

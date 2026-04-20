@@ -138,7 +138,7 @@ async def _process_message(msg: dict) -> None:
     # Comando /reset
     if msg_type in TEXT_TYPES and (msg_text or "").strip().lower() == "/reset":
         await rds.clear_chat_history(phone)
-        await db.upsert_lead(phone, modo_mudo=0, status_conversa="novo",
+        await db.upsert_lead(phone, nome=None, modo_mudo=0, status_conversa="novo",
                              next_follow_up=None, stage_follow_up=0, dia_aula=None)
         await rds.delete_buffer(phone)
         log(_ok(f"[{phone}] Reset solicitado"))
@@ -149,13 +149,12 @@ async def _process_message(msg: dict) -> None:
         _save_session_log(phone)
         return
 
-    # Upsert do lead em SQLite + nome conhecido
+    # Upsert do lead em SQLite — nome só é gravado via tool salva_nome.
+    # push_name (nome do contato no WhatsApp) é usado apenas como fallback
+    # para alertas/Sheets, nunca como nome confirmado para o Gemini.
     lead = await db.get_lead(phone)
     if lead is None:
-        await db.upsert_lead(phone, nome=push_name or None)
-        lead = await db.get_lead(phone) or {}
-    elif push_name and not lead.get("nome"):
-        await db.upsert_lead(phone, nome=push_name)
+        await db.upsert_lead(phone)
         lead = await db.get_lead(phone) or {}
 
     media_url = msg.get("media_url", "")
@@ -222,7 +221,7 @@ async def _process_message(msg: dict) -> None:
     log(f"[GEMINI] chat_with_tools(phone={phone}, msg_len={len(unified_msg)})")
     try:
         ai_response, tokens = await chat_with_tools(
-            phone, unified_msg, lead_name=(lead.get("nome") or push_name or "")
+            phone, unified_msg, lead_name=(lead.get("nome") or "")
         )
     except Exception as e:
         # Gemini indisponível após todos os retries (sobrecarga, timeout, etc).

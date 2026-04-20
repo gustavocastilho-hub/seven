@@ -54,6 +54,30 @@ def _time_header() -> str:
         "- Calcular datas relativas (hoje, amanhã, próxima sexta, etc.).\n"
     )
 
+
+def _lead_header(lead_name: str) -> str:
+    """Bloco informando ao Gemini se o nome do lead já é conhecido.
+
+    Alimenta a Regra 16 (TRAVA DE PRIMEIRA MENSAGEM DE LEAD). Quando vazio,
+    o Gemini deve obrigatoriamente se apresentar e pedir o nome antes de
+    responder a qualquer dúvida.
+    """
+    if lead_name and lead_name.strip():
+        return (
+            "\n\n---\n\n## 👤 NOME DO LEAD\n"
+            f"**NOME DO LEAD:** {lead_name.strip()}\n\n"
+            "O nome já foi confirmado em interação anterior. NÃO pergunte o nome "
+            "de novo. Use-o com parcimônia (Regra 2)."
+        )
+    return (
+        "\n\n---\n\n## 👤 NOME DO LEAD\n"
+        "**NOME DO LEAD:** (desconhecido)\n\n"
+        "🚨 Esta é a PRIMEIRA interação (ou o histórico foi resetado). Aplique "
+        "OBRIGATORIAMENTE a **Regra 16 — TRAVA DE PRIMEIRA MENSAGEM DE LEAD**: "
+        "saudar, apresentar-se como Zoe e pedir o nome ANTES de responder "
+        "qualquer dúvida ou chamar qualquer tool (exceto `salva_nome` após receber o nome)."
+    )
+
 logger = logging.getLogger(__name__)
 
 _client: Optional[genai.Client] = None
@@ -268,8 +292,12 @@ async def chat_with_tools(phone: str, user_message: str, lead_name: str = "",
     contents.append(gtypes.Content(role="user", parts=[gtypes.Part.from_text(text=user_message)]))
 
     # Prefixo (PROMPT_CORE + catálogos) fica cacheado implicitamente pelo Gemini;
-    # o _time_header() vai no final para não invalidar o cache do prefixo.
-    system_instruction = build_system_prompt(user_message) + _time_header()
+    # o _time_header() e o _lead_header() vão no final para não invalidar o cache.
+    system_instruction = (
+        build_system_prompt(user_message)
+        + _time_header()
+        + _lead_header(lead_name)
+    )
     config = gtypes.GenerateContentConfig(
         system_instruction=system_instruction,
         tools=[ALL_TOOLS],

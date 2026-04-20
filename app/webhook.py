@@ -69,7 +69,7 @@ async def webhook(request: Request):
     # /reset instantâneo — processa antes da fila para não esperar debounce
     if phone in RESET_PHONES and text.strip().lower() == "/reset":
         await rds.clear_chat_history(phone)
-        await db.upsert_lead(phone, modo_mudo=0, status_conversa="novo",
+        await db.upsert_lead(phone, nome=None, modo_mudo=0, status_conversa="novo",
                              next_follow_up=None, stage_follow_up=0, dia_aula=None)
         await rds.delete_buffer(phone)
         try:

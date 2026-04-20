@@ -170,6 +170,73 @@ SCHEMA_ATENDIMENTO_HUMANO = gtypes.FunctionDeclaration(
     ),
 )
 
+SCHEMA_AVISA_MUSCULACAO = gtypes.FunctionDeclaration(
+    name="avisa_recepcao_musculacao",
+    description=(
+        "Avisa a recepção que o lead virá para aula experimental de MUSCULAÇÃO "
+        "em uma data/hora específica. Use APENAS para musculação — a modalidade é "
+        "livre demanda (sem slot no CloudGym). NÃO chama a API de agendamento; "
+        "apenas dispara o alerta para a recepção. Chame quando o lead INSISTIR "
+        "em informar um dia+horário específico para experimental de musculação."
+    ),
+    parameters=gtypes.Schema(
+        type=gtypes.Type.OBJECT,
+        properties={
+            "data": gtypes.Schema(type=gtypes.Type.STRING, description="yyyy-MM-dd"),
+            "hora": gtypes.Schema(type=gtypes.Type.STRING, description="HH:mm"),
+            "nome_completo": gtypes.Schema(
+                type=gtypes.Type.STRING,
+                description="Nome completo do lead (se ainda não cadastrado).",
+            ),
+        },
+        required=["data", "hora"],
+    ),
+)
+
+SCHEMA_CONSULTA_AVALIACAO = gtypes.FunctionDeclaration(
+    name="consulta_avaliacao_fisica",
+    description=(
+        "Retorna as regras completas da avaliação física (horários disponíveis, "
+        "custo, duração, exigências). Uso EXCLUSIVO para alunos já matriculados. "
+        "NÃO oferecer para leads."
+    ),
+    parameters=gtypes.Schema(type=gtypes.Type.OBJECT, properties={}),
+)
+
+SCHEMA_CONSULTA_APP = gtypes.FunctionDeclaration(
+    name="consulta_app_login",
+    description=(
+        "Retorna as instruções de login no app CloudGym (usuário e senha padrão). "
+        "Uso EXCLUSIVO para alunos já matriculados."
+    ),
+    parameters=gtypes.Schema(type=gtypes.Type.OBJECT, properties={}),
+)
+
+SCHEMA_CONSULTA_PLANOS = gtypes.FunctionDeclaration(
+    name="consulta_planos_detalhes",
+    description=(
+        "Retorna detalhes específicos sobre planos/valores que não estão na "
+        "imagem [IMAGEM_PLANOS_VALORES]. Use quando precisar das regras finas "
+        "(upgrade de aluno Musc+1 modalidade, descontos de renovação antecipada, "
+        "plano familiar, pacote de aulas avulsas, diárias)."
+    ),
+    parameters=gtypes.Schema(
+        type=gtypes.Type.OBJECT,
+        properties={
+            "topico": gtypes.Schema(
+                type=gtypes.Type.STRING,
+                description=(
+                    "Um destes valores: 'upgrade_aluno' (Musc+modalidade), "
+                    "'renovacao_desconto' (desconto por antecipação), "
+                    "'familiar' (plano familiar), 'avulsas' (pacote de check-ins), "
+                    "'diarias' (valor da diária), 'desconto_feminino' (Muay Thai/FitDance sem musc)."
+                ),
+            ),
+        },
+        required=["topico"],
+    ),
+)
+
 ALL_TOOLS = gtypes.Tool(
     function_declarations=[
         SCHEMA_SALVA_NOME,
@@ -178,6 +245,10 @@ ALL_TOOLS = gtypes.Tool(
         SCHEMA_CATALOGO,
         SCHEMA_AGENDA_AULA,
         SCHEMA_ATENDIMENTO_HUMANO,
+        SCHEMA_AVISA_MUSCULACAO,
+        SCHEMA_CONSULTA_AVALIACAO,
+        SCHEMA_CONSULTA_APP,
+        SCHEMA_CONSULTA_PLANOS,
     ]
 )
 
@@ -504,6 +575,159 @@ async def handle_atendimento_humano(phone: str, args: dict) -> dict:
     return {"ok": True, "motivo": motivo, "alert_sent": alert_sent}
 
 
+async def handle_avisa_recepcao_musculacao(phone: str, args: dict) -> dict:
+    """Alerta a recepção sobre aula experimental de musculação (livre demanda).
+
+    Musculação não tem slot no CloudGym — é livre demanda. Quando o lead informa
+    um dia+horário específico para experimental de musculação, apenas disparamos
+    o alerta para a recepção no mesmo formato usado por `agenda_aula`.
+    """
+    data_str = (args.get("data") or "").strip()
+    hora = (args.get("hora") or "").strip()
+    nome_completo = (args.get("nome_completo") or "").strip()
+
+    if not data_str or not hora:
+        return {"ok": False, "error": "data e hora são obrigatórias"}
+
+    # Validação leve da data
+    try:
+        dt = datetime.strptime(data_str, "%Y-%m-%d").date()
+    except ValueError:
+        return {"ok": False, "error": "data inválida — use yyyy-MM-dd"}
+
+    if dt.weekday() == 6:
+        return {"ok": False, "error": "academia não atende aula experimental aos domingos"}
+
+    # Fallback: busca nome no SQLite se não veio
+    if not nome_completo:
+        lead = await db.get_lead(phone) or {}
+        nome_completo = (lead.get("nome") or "").strip()
+
+    try:
+        from datetime import datetime as _dt
+        data_fmt = _dt.strptime(data_str, "%Y-%m-%d").strftime("%d/%m/%Y")
+    except Exception:
+        data_fmt = data_str
+
+    alert_text = (
+        f"\U0001f4c5 NOVA AULA EXPERIMENTAL\n"
+        f"Modalidade: Musculação (livre demanda)\n"
+        f"Data/Hora: {data_fmt} {hora}\n"
+        f"Aluno: {nome_completo or '(nome não informado)'}\n"
+        f"Telefone: {phone}"
+    )
+
+    alert_sent = False
+    for tentativa in range(3):
+        try:
+            await uazapi.send_text(settings.ALERT_PHONE, alert_text)
+            logger.info("Alerta musculação enviado para recepção: %s", phone)
+            alert_sent = True
+            break
+        except Exception as e:
+            logger.warning("Falha ao alertar musculação (tentativa %d/3): %s", tentativa + 1, e)
+            if tentativa < 2:
+                await asyncio.sleep(2)
+
+    # Salva dia_aula para o job pós-trial D+1
+    try:
+        await db.set_dia_aula(phone, data_fmt)
+    except Exception:
+        pass
+
+    return {
+        "ok": True,
+        "modalidade": "Musculação",
+        "data": data_str,
+        "hora": hora,
+        "alert_sent": alert_sent,
+    }
+
+
+# ---------------- handlers de consulta de base de conhecimento ----------------
+
+_INFO_AVALIACAO = (
+    "AVALIAÇÃO FÍSICA (somente para alunos matriculados):\n"
+    "- Aluno matriculado mensal/semestral ou renovação semestral: 1 avaliação grátis.\n"
+    "- Aluno mensal que quer nova avaliação: R$ 30,00.\n"
+    "- Falta sem aviso: perde gratuidade; remarcação R$ 30,00.\n"
+    "- Duração: máx 20 min. Comer com até 2h de antecedência; preferir shorts. "
+    "NÃO pode treinar antes, só depois.\n"
+    "- Horários disponíveis:\n"
+    "  • Terça 19-21h\n"
+    "  • Quarta 9-10h\n"
+    "  • Quinta 19-21h\n"
+    "  • Sexta 17-18h e 19-21h"
+)
+
+_INFO_APP = (
+    "APP CloudGym — login:\n"
+    "- Usuário: e-mail cadastrado no sistema.\n"
+    "- Senha: data de aniversário completa sem pontuação (ddmmaaaa)."
+)
+
+_INFO_PLANOS = {
+    "upgrade_aluno": (
+        "UPGRADE DE ALUNO (Musculação + 1 modalidade):\n"
+        "- Se quiser adicionar CROSS / MUAY THAI / FITDANCE → plano 'Modalidades Individuais'.\n"
+        "- Se quiser adicionar SEVEN PUMP / SEVEN BIKE / BIKE MOVE → plano 'Coletivas'.\n"
+        "- Se quiser várias aulas (Bike + Pump + FitDance, etc.) → plano 'Seven Gold' (acesso ilimitado)."
+    ),
+    "renovacao_desconto": (
+        "DESCONTOS DE RENOVAÇÃO (plano semestral):\n"
+        "- Renovar 15 a 8 dias antes do vencimento: 10% de desconto.\n"
+        "- Renovar até 1 dia antes do vencimento: 5% de desconto.\n"
+        "- Descontos NÃO são cumulativos com outras promoções ou convênios."
+    ),
+    "familiar": (
+        "PLANO FAMILIAR:\n"
+        "- 10% de desconto no plano semestral para pessoas da mesma família "
+        "(ex: mãe e filho, marido e esposa) ou que compartilham a mesma renda.\n"
+        "- Com desconto chega a ~R$ 87,92/mês."
+    ),
+    "avulsas": (
+        "PACOTE DE AULAS AVULSAS (check-ins extras):\n"
+        "- Público: leads que querem treinar poucos dias OU alunos que esgotaram "
+        "os 6 check-ins semanais.\n"
+        "- Valores: 2 check-ins por R$ 32,00 OU 4 check-ins por R$ 60,00.\n"
+        "- Validade: 7 dias da data da compra.\n"
+        "- Compra: APENAS na recepção (não pelo WhatsApp).\n"
+        "- Pagamento: dinheiro, PIX ou cartão de débito."
+    ),
+    "diarias": (
+        "DIÁRIAS:\n"
+        "- 1º dia: R$ 30,00.\n"
+        "- Demais dias: R$ 15,00."
+    ),
+    "desconto_feminino": (
+        "DESCONTO EXCLUSIVO (Muay Thai Feminino / FitDance):\n"
+        "- Alunas dessas modalidades que optarem por praticar APENAS a modalidade "
+        "(sem usar musculação) têm direito ao valor de tabela de convênios "
+        "(20% de desconto)."
+    ),
+}
+
+
+async def handle_consulta_avaliacao_fisica(phone: str, args: dict) -> dict:
+    return {"ok": True, "info": _INFO_AVALIACAO}
+
+
+async def handle_consulta_app_login(phone: str, args: dict) -> dict:
+    return {"ok": True, "info": _INFO_APP}
+
+
+async def handle_consulta_planos_detalhes(phone: str, args: dict) -> dict:
+    topico = (args.get("topico") or "").strip().lower()
+    info = _INFO_PLANOS.get(topico)
+    if not info:
+        return {
+            "ok": False,
+            "error": f"tópico '{topico}' não reconhecido",
+            "topicos_validos": list(_INFO_PLANOS.keys()),
+        }
+    return {"ok": True, "topico": topico, "info": info}
+
+
 HANDLERS = {
     "salva_nome": handle_salva_nome,
     "classifica_contato": handle_classifica_contato,
@@ -511,6 +735,10 @@ HANDLERS = {
     "catalogo_horarios": handle_catalogo_horarios,
     "agenda_aula": handle_agenda_aula,
     "atendimento_humano": handle_atendimento_humano,
+    "avisa_recepcao_musculacao": handle_avisa_recepcao_musculacao,
+    "consulta_avaliacao_fisica": handle_consulta_avaliacao_fisica,
+    "consulta_app_login": handle_consulta_app_login,
+    "consulta_planos_detalhes": handle_consulta_planos_detalhes,
 }
 
 

@@ -36,7 +36,7 @@ Isso inclui:
 Três processos, mesma imagem Docker:
 
 - **seven-api** (`uvicorn app.main:app`): recebe webhook Uazapi em `/seven` → publica na fila RabbitMQ `seven`.
-- **seven-worker** (`python worker.py`): consome a fila, aplica debounce 30s em Redis, chama Gemini 2.5 Flash com function calling (tools: `salva_nome`, `classifica_contato`, `lista_horarios`, `agenda_aula`, `atendimento_humano`), envia respostas via Uazapi e persiste estado do lead em SQLite.
+- **seven-worker** (`python worker.py`): consome a fila, aplica debounce 30s em Redis, chama Gemini 2.5 Flash com function calling (tools: `salva_nome`, `classifica_contato`, `lista_horarios`, `catalogo_horarios`, `agenda_aula`, `avisa_recepcao_musculacao`, `atendimento_humano`, `consulta_avaliacao_fisica`, `consulta_app_login`, `consulta_planos_detalhes`), envia respostas via Uazapi e persiste estado do lead em SQLite.
 - **seven-scheduler** (`python scheduler.py`): APScheduler com 4 jobs:
   - `reactivation` — a cada 1 min: reativa leads com Gemini (stages 1/2/3).
   - `plan_expiry` — 09:00 diário: lembretes 7d/15d via CloudGym v2.
@@ -52,17 +52,25 @@ Três processos, mesma imagem Docker:
 - **Uazapi** (`strategicai.uazapi.com`): envio de texto, mídia (imagens), download de áudio/imagem recebidos.
 - **Gemini 2.5 Flash** (`google-genai` SDK): chat com tools + cache implícito + transcrição de áudio + análise de imagem.
 - **Google Sheets**: CRM pós-conversa (colunas Data/Hora, WhatsApp, Nome, Resumo).
-- **Redis** (`91.98.64.92:6380`): buffer de mensagens (debounce), histórico de chat (últimas 30 mensagens), flags de bloqueio/alerta/dedup.
+- **Redis** (`91.98.64.92:6380`): buffer de mensagens (debounce), histórico de chat (últimas 10 mensagens), flags de bloqueio/alerta/dedup.
 - **RabbitMQ** (`91.98.64.92:5672`): fila `seven`.
 
 ## Economia de tokens (Gemini 2.5 Flash)
 
-1. **Cache implícito**: `system_instruction` é o primeiro bloco de cada chamada. A partir da 2ª mensagem da mesma sessão (em ≤5 min) o Gemini desconta 75% dos tokens cacheados.
-2. **Prompt modular** (`app/prompt.py`): `PROMPT_CORE` sempre enviado + `CATALOGO_HORARIOS` e `CATALOGO_PRECOS` só quando a mensagem do lead casa com regex de intenção. Economia média 40-60% por turno.
-3. **Function calling nativo**: as 5 tools são passadas como `FunctionDeclaration` (`app/tools.py`); o prompt **não** lista as tools inline.
-4. **History** truncado para 30 mensagens (`app/services/redis_service.py`).
+1. **Cache implícito**: `system_instruction` é o primeiro bloco de cada chamada. O prefixo é estável (`PROMPT_CORE` constante). `_time_header` e `_lead_header` ficam no FINAL do system prompt para não invalidar o cache.
+2. **Prompt enxuto** (`app/prompt.py`): apenas `PROMPT_CORE`. Informação detalhada (avaliação física, login do app, regras finas de plano) foi migrada para tools de consulta sob demanda (`consulta_avaliacao_fisica`, `consulta_app_login`, `consulta_planos_detalhes`).
+3. **Function calling nativo**: todas as tools via `FunctionDeclaration` (`app/tools.py`); o prompt **não** descreve schemas inline.
+4. **History** truncado para **10 mensagens** (`app/services/redis_service.py`).
 5. **Debounce 30s**: várias mensagens do usuário viram 1 chamada.
 6. **Modo mudo**: após `atendimento_humano`, o worker nem chama o Gemini — responde `[FINALIZADO=1]` localmente.
+
+## Aula experimental de MUSCULAÇÃO (livre demanda)
+
+Musculação é livre demanda — não tem slot no CloudGym como as aulas coletivas.
+
+- Fluxo padrão: Zoe convida o lead a vir em qualquer horário do funcionamento.
+- Se o lead INSISTIR em informar dia+horário: Zoe chama `avisa_recepcao_musculacao(data, hora, nome_completo)`, que envia alerta no formato `📅 NOVA AULA EXPERIMENTAL` ao `ALERT_PHONE`. NÃO chama `lista_horarios` nem `agenda_aula` (a API CloudGym não tem slot de musculação).
+- O handler também salva `dia_aula` no SQLite para o job `post_trial` (follow-up D+1).
 
 ## Retry em caso de sobrecarga do Gemini
 

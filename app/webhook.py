@@ -14,8 +14,6 @@ from app.services.rabbitmq import publish
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-RESET_PHONES = {"5511989887525", "554384470068"}
-
 
 @router.post(settings.WEBHOOK_PATH)
 async def webhook(request: Request):
@@ -69,11 +67,6 @@ async def webhook(request: Request):
     # /reset instantâneo — processa antes da fila para não esperar debounce
     text_normalized = (text or "").strip().lower()
     if text_normalized == "/reset":
-        logger.info(
-            "[RESET-DEBUG] phone=%r in RESET_PHONES=%s text_raw=%r text_norm=%r",
-            phone, phone in RESET_PHONES, text, text_normalized,
-        )
-    if phone in RESET_PHONES and text_normalized == "/reset":
         await rds.clear_chat_history(phone)
         await db.upsert_lead(phone, nome=None, modo_mudo=0, status_conversa="novo",
                              next_follow_up=None, stage_follow_up=0, dia_aula=None)

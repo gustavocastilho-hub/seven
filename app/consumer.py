@@ -211,10 +211,6 @@ async def _process_message(msg: dict) -> None:
 
     # Debounce
     count = await rds.push_buffer(phone, buffer_text)
-    # Feedback visual "digitando…" no WhatsApp enquanto o lead está sendo atendido.
-    # Disparado sempre que a msg entra, mesmo quando outro ciclo já está ativo —
-    # o usuário precisa de sinal de que está sendo respondido durante o debounce.
-    asyncio.create_task(uazapi.send_presence(phone, "composing", delay=3500))
     if count > 1:
         logger.info("Buffer já ativo para %s (count=%d)", phone, count)
         return

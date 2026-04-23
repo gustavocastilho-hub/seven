@@ -60,24 +60,6 @@ async def send_video(number: str, video_url: str, caption: str = "") -> dict:
     return await _send_media(number, "video", video_url)
 
 
-async def send_presence(number: str, presence: str = "composing", delay: int = 2500) -> None:
-    """Envia status de presença (composing/paused/recording) para o WhatsApp.
-
-    Best-effort: erros são engolidos porque presença é cosmética — não vale
-    derrubar o fluxo se a UAZAPI oscilar.
-    """
-    url = f"{settings.UAZAPI_BASE_URL}/message/presence"
-    payload = {"number": number, "presence": presence, "delay": delay}
-    try:
-        client = _get_client()
-        resp = await client.post(url, content=_json_body(payload), headers=_headers())
-        if resp.status_code >= 400:
-            logger.debug("presence %s->%s HTTP %d: %s",
-                         number, presence, resp.status_code, resp.text[:120])
-    except Exception as e:
-        logger.debug("presence %s->%s falhou: %s", number, presence, e)
-
-
 async def download_media(media_url: str) -> bytes:
     client = _get_client()
     resp = await client.get(media_url, headers=_headers())

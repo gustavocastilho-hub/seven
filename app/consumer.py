@@ -6,8 +6,11 @@ calling, envia respostas e persiste estado do lead no SQLite.
 import asyncio
 import json
 import logging
+import random
 import re
 import time
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import redis as redis_sync
 
@@ -70,6 +73,16 @@ def _save_session_log(phone: str) -> None:
 
 def _is_group(chat_id: str) -> bool:
     return "@g.us" in chat_id
+
+
+def _next_followup_iso() -> str:
+    """Próximo follow-up: amanhã entre 08:00 e 08:59 SP, em ISO UTC.
+    Minuto aleatório para distribuir a carga do reactivation a cada 1min."""
+    tz = ZoneInfo(settings.SCHEDULER_TZ)
+    tomorrow_sp = (datetime.now(tz) + timedelta(days=1)).replace(
+        hour=8, minute=random.randint(0, 59), second=0, microsecond=0
+    )
+    return tomorrow_sp.astimezone(timezone.utc).isoformat()
 
 
 def _parse_ai_response(text: str) -> tuple[list[dict], bool]:
@@ -320,6 +333,15 @@ async def _process_message(msg: dict) -> None:
         await rds.set_block(phone)
         await db.mark_finalizado(phone)
         log(_ok(f"[{phone}] Conversa finalizada"))
+    else:
+        # Reagenda follow-up de reativação para amanhã 08:00–08:59 SP e reseta
+        # o stage para 1. Sempre que o lead responde, zeramos a contagem de
+        # tentativas — o scheduler de reactivation só dispara se o lead ficar
+        # em silêncio até amanhã de manhã.
+        try:
+            await db.schedule_followup(phone, _next_followup_iso(), stage=1)
+        except Exception as e:
+            log(_warn(f"[{phone}] falha ao reagendar follow-up: {e}"))
 
     await _update_summary_and_sheets(phone, lead.get("nome") or push_name)
     _save_session_log(phone)

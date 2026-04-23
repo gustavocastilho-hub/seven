@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     RABBITMQ_PASS: str = "guest"
     RABBITMQ_VHOST: str = "default"
     RABBITMQ_QUEUE: str = "seven-claude"
+    # Permite consumir várias msgs em paralelo — essencial para o debounce
+    # Redis agrupar mensagens do mesmo lead que chegam em sequência rápida.
+    RABBITMQ_PREFETCH: int = 20
 
     # Redis
     REDIS_HOST: str = "91.98.64.92"

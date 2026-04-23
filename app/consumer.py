@@ -122,23 +122,27 @@ async def _process_message(msg: dict) -> None:
     msg_text = msg.get("msg", "")
     push_name = msg.get("push_name", "")
 
-    logger.info("[RECV] phone=%s type=%s from_me=%s", phone, msg_type, from_me)
+    log(_msg(f"[{phone}] [RECV] type={msg_type} from_me={from_me}"))
 
     if not phone or msg_type in ("", "Unknown"):
-        logger.warning("[RECV] ignorado: phone=%r type=%r", phone, msg_type)
+        log(_warn(f"[{phone}] ignorado: type={msg_type!r}"))
+        _save_session_log(phone)
         return
 
     if from_me:
         await rds.set_block(phone)
-        logger.info("Humano assumiu chat %s - agente bloqueado por 1h", chat_id)
+        log(_warn(f"[{phone}] humano assumiu — agente bloqueado por 1h"))
+        _save_session_log(phone)
         return
 
     if await rds.is_blocked(phone):
-        logger.info("Agente bloqueado para %s - ignorando", chat_id)
+        log(_warn(f"[{phone}] agente bloqueado (humano ativo) — ignorando"))
+        _save_session_log(phone)
         return
 
     if _is_group(chat_id):
-        logger.warning("[RECV] ignorado grupo: chat_id=%r", chat_id)
+        log(_warn(f"[{phone}] ignorado (grupo): chat_id={chat_id!r}"))
+        _save_session_log(phone)
         return
 
     # Comando /reset — precedência MÁXIMA (roda antes de modo_mudo para
@@ -325,9 +329,11 @@ async def _process_message(msg: dict) -> None:
             log(_err(f"[WHATSAPP] falha ao enviar {part['type']} ({i+1}/{len(parts)}): {e}"))
 
     if finalizado:
-        await rds.set_block(phone)
+        # [FINALIZADO=1] encerra o fluxo e desliga follow-up, mas NÃO bloqueia
+        # a IA — o lead ainda pode mandar agradecimento/dúvida e a Zoe responde.
+        # Bloqueio de 1h só é ativado quando humano assume (from_me=True).
         await db.mark_finalizado(phone)
-        log(_ok(f"[{phone}] Conversa finalizada"))
+        log(_ok(f"[{phone}] Conversa finalizada (follow-up desligado, IA ainda responde)"))
     else:
         # Reagenda follow-up de reativação para amanhã 08:00–08:59 SP e reseta
         # o stage para 1. Sempre que o lead responde, zeramos a contagem de

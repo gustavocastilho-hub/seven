@@ -33,8 +33,8 @@ x-common-env: &common-env
   - SQLITE_PATH=${SQLITE_PATH}
   - SCHEDULER_TZ=${SCHEDULER_TZ}
   - FOLLOWUP_DRY_RUN=${FOLLOWUP_DRY_RUN}
-  - CLIENT_SLUG=${CLIENT_SLUG}
-  - CLIENT_NAME=${CLIENT_NAME}
+  - CLIENT_SLUG=${CLIENT_SLUG:-seven}
+  - CLIENT_NAME=${CLIENT_NAME:-Seven Academia}
 
 services:
   seven-api:

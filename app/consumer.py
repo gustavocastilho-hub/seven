@@ -199,6 +199,10 @@ async def _process_message(msg: dict) -> None:
 
     # Debounce
     count = await rds.push_buffer(phone, buffer_text)
+    # Feedback visual "digitando…" no WhatsApp enquanto o lead está sendo atendido.
+    # Disparado sempre que a msg entra, mesmo quando outro ciclo já está ativo —
+    # o usuário precisa de sinal de que está sendo respondido durante o debounce.
+    asyncio.create_task(uazapi.send_presence(phone, "composing", delay=3500))
     if count > 1:
         logger.info("Buffer já ativo para %s (count=%d)", phone, count)
         return
@@ -277,6 +281,18 @@ async def _process_message(msg: dict) -> None:
 
     if await rds.is_blocked(phone):
         log(_warn(f"[{phone}] Humano assumiu durante processamento"))
+        _save_session_log(phone)
+        return
+
+    # Abort por nova mensagem: se o lead mandou algo ENQUANTO o Gemini estava
+    # processando, o buffer foi repopulado (o outro ciclo iniciou). Descartamos
+    # esta resposta (evita responder fora de contexto), removemos user+model
+    # fantasmas do histórico e reinjetamos a unified_msg no início do buffer
+    # para que o novo ciclo processe tudo junto.
+    if await rds.get_buffer(phone):
+        log(_warn(f"[{phone}] nova msg durante Gemini — descartando resposta e mesclando ciclos"))
+        await rds.pop_last_history(phone, n=2)
+        await rds.prepend_buffer(phone, unified_msg)
         _save_session_log(phone)
         return
 

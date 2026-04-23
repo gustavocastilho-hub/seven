@@ -143,6 +143,31 @@ def get_class_meta(class_id: int | str) -> dict:
     return _load_discovery().get(str(class_id), {})
 
 
+# ---------------- Weekday por class_id (gerado por scripts/discover_weekdays.py) -----
+
+_WEEKDAYS_PATH = Path(__file__).resolve().parent.parent.parent / "scripts" / "class_weekdays.json"
+_weekdays_cache: Optional[dict[str, list[int]]] = None
+
+
+def class_weekdays(class_id: int | str) -> Optional[list[int]]:
+    """Weekdays (0=seg..6=dom) em que o class_id específico roda, conforme
+    descoberto rodando `scripts/discover_weekdays.py` contra a CloudGym.
+
+    Retorna `None` se o mapa não existe ou não tem info desse ID — nesse caso
+    o caller deve aceitar o class_id conservadoramente (não regredir)."""
+    global _weekdays_cache
+    if _weekdays_cache is None:
+        if _WEEKDAYS_PATH.exists():
+            try:
+                raw = json.loads(_WEEKDAYS_PATH.read_text(encoding="utf-8"))
+                _weekdays_cache = {str(k): list(v) for k, v in raw.items()}
+            except Exception:
+                _weekdays_cache = {}
+        else:
+            _weekdays_cache = {}
+    return _weekdays_cache.get(str(class_id))
+
+
 # ---------------- Helpers ----------------
 
 def _normalize(s: str) -> str:

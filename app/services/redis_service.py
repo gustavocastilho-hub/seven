@@ -40,6 +40,13 @@ async def push_buffer(phone: str, text: str) -> int:
     return await r.rpush(_buffer_key(phone), text)
 
 
+async def prepend_buffer(phone: str, text: str) -> int:
+    """Insere no início do buffer. Usado ao abortar uma resposta obsoleta para
+    que o próximo ciclo processe a msg antiga + as novas que chegaram juntas."""
+    r = await get_redis()
+    return await r.lpush(_buffer_key(phone), text)
+
+
 async def get_buffer(phone: str) -> list[str]:
     r = await get_redis()
     return await r.lrange(_buffer_key(phone), 0, -1)
@@ -82,6 +89,15 @@ async def append_chat_history(phone: str, role: str, text: str) -> None:
 async def clear_chat_history(phone: str) -> None:
     r = await get_redis()
     await r.delete(_history_key(phone))
+
+
+async def pop_last_history(phone: str, n: int = 1) -> None:
+    """Remove as últimas `n` entradas do histórico. Usado no abort para
+    descartar user+model registrados numa chamada Gemini cuja resposta
+    não chegou a ser enviada ao lead."""
+    r = await get_redis()
+    for _ in range(n):
+        await r.rpop(_history_key(phone))
 
 
 # ---- alerta de atendimento humano ----

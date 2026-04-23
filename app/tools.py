@@ -371,6 +371,34 @@ async def handle_lista_horarios(phone: str, args: dict) -> dict:
     if not aulas:
         return {"ok": False, "error": f"nenhuma aula de '{modalidade}' no catálogo"}
 
+    # Filtro por weekday do class_id: CloudGym /config/classes devolve o
+    # catálogo inteiro da semana sem distinguir dia. Sem esse filtro, Zoe
+    # acabava oferecendo 17:15 Bike na Quarta — que só roda Ter/Qui.
+    # O mapa é populado por scripts/discover_weekdays.py; IDs sem info no
+    # mapa são mantidos (conservador — não regride se o discovery não rodou).
+    target_wd = dt.weekday()
+    filtered = []
+    skipped_ids = []
+    for c in aulas:
+        wds = catalog.class_weekdays(c.get("id"))
+        if wds is None or target_wd in wds:
+            filtered.append(c)
+        else:
+            skipped_ids.append(c.get("id"))
+    if skipped_ids:
+        logger.info(
+            "[lista_horarios] %s em %s: descartados %d IDs fora do weekday %d (%s)",
+            modalidade, data_str, len(skipped_ids), target_wd, skipped_ids,
+        )
+    if not filtered:
+        return {
+            "ok": False,
+            "error": "dia_sem_aula",
+            "modalidade": catalog.DISPLAY_NAME.get(canon, canon),
+            "mensagem_tecnica": f"{catalog.DISPLAY_NAME.get(canon, canon)} não roda em {data_str}.",
+        }
+    aulas = filtered
+
     # Agrupa por `time`
     by_time: dict[str, dict] = {}
     for c in aulas:

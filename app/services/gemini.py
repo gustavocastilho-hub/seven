@@ -119,9 +119,14 @@ def _is_non_retriable(exc: Exception) -> bool:
     return False
 
 
-async def call_with_retry(fn: Callable[[], Any], *, max_tries: int = 6, base: float = 4.0,
-                          max_wait: float = 60.0, label: str = "gemini") -> Any:
-    """Executa fn() com backoff exponencial + jitter quando detectar sobrecarga."""
+async def call_with_retry(fn: Callable[[], Any], *, max_tries: int = 3, base: float = 3.0,
+                          max_wait: float = 30.0, label: str = "gemini") -> Any:
+    """Executa fn() com backoff exponencial + jitter quando detectar sobrecarga.
+
+    Defaults reduzidos (3 tentativas, base 3s, teto 30s) — max ~27s — porque
+    em caso de 503 persistente preferimos cair rápido para o modelo de fallback
+    em vez de segurar o lead esperando 90s. Fallback cobre as tentativas restantes.
+    """
     last_exc: Exception | None = None
     for attempt in range(1, max_tries + 1):
         try:
@@ -142,6 +147,36 @@ async def call_with_retry(fn: Callable[[], Any], *, max_tries: int = 6, base: fl
             await asyncio.sleep(wait)
     assert last_exc is not None
     raise last_exc
+
+
+async def generate_with_fallback(client: "genai.Client", *, contents: list,
+                                 config: Any, phone: str, iter: int) -> Any:
+    """Chama generate_content com o modelo primário; se esgotar por sobrecarga,
+    refaz com GEMINI_FALLBACK_MODEL. Reduz o pior caso de ~90s para ~45s."""
+    def _primary():
+        return client.models.generate_content(
+            model=settings.GEMINI_MODEL,
+            contents=contents,
+            config=config,
+        )
+    try:
+        return await call_with_retry(_primary, label=f"gemini.chat[{phone}][iter{iter}]")
+    except Exception as e:
+        if not _is_overload(e):
+            raise
+        if not settings.GEMINI_FALLBACK_MODEL or settings.GEMINI_FALLBACK_MODEL == settings.GEMINI_MODEL:
+            raise
+        logger.warning("[%s] iter=%d primário esgotou 503 — caindo para %s",
+                       phone, iter, settings.GEMINI_FALLBACK_MODEL)
+        def _fallback():
+            return client.models.generate_content(
+                model=settings.GEMINI_FALLBACK_MODEL,
+                contents=contents,
+                config=config,
+            )
+        return await call_with_retry(
+            _fallback, label=f"gemini.chat.fallback[{phone}][iter{iter}]"
+        )
 
 
 # ---------------- conversão de history para types do google-genai ----------------
@@ -312,14 +347,9 @@ async def chat_with_tools(phone: str, user_message: str, lead_name: str = "",
     empty_retries = 0
 
     for it in range(max_tool_iters):
-        def _call():
-            return client.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=contents,
-                config=config,
-            )
-
-        response = await call_with_retry(_call, label=f"gemini.chat[{phone}]")
+        response = await generate_with_fallback(
+            client, contents=contents, config=config, phone=phone, iter=it,
+        )
 
         inp, out, tot = _usage_tokens(response)
         tokens_acc[0] += inp

@@ -74,22 +74,28 @@ def _is_group(chat_id: str) -> bool:
     return "@g.us" in chat_id
 
 
-def _next_followup_iso() -> str:
-    """Próximo follow-up: amanhã entre 08:00 e 08:59 SP, em ISO UTC.
+def _next_followup_iso(days: int = 1) -> str:
+    """Próximo follow-up: daqui a `days` dias entre 08:00 e 08:59 SP, em ISO UTC.
     Minuto aleatório para distribuir a carga do reactivation a cada 1min."""
     tz = ZoneInfo(settings.SCHEDULER_TZ)
-    tomorrow_sp = (datetime.now(tz) + timedelta(days=1)).replace(
+    target = (datetime.now(tz) + timedelta(days=days)).replace(
         hour=8, minute=random.randint(0, 59), second=0, microsecond=0
     )
-    return tomorrow_sp.astimezone(timezone.utc).isoformat()
+    return target.astimezone(timezone.utc).isoformat()
 
 
-def _parse_ai_response(text: str) -> tuple[list[dict], bool]:
+def _parse_ai_response(text: str) -> tuple[list[dict], bool, int | None]:
     finalizado = False
     match = re.search(r"\[FINALIZADO=(\d)\]", text)
     if match:
         finalizado = match.group(1) == "1"
         text = re.sub(r"\[FINALIZADO=\d\]", "", text).strip()
+
+    pensar_days: int | None = None
+    pmatch = re.search(r"\[PENSAR=(\d+)\]", text)
+    if pmatch:
+        pensar_days = int(pmatch.group(1))
+        text = re.sub(r"\[PENSAR=\d+\]", "", text).strip()
 
     if "|||" in text:
         raw_parts = [p.strip() for p in text.split("|||") if p.strip()]
@@ -104,14 +110,14 @@ def _parse_ai_response(text: str) -> tuple[list[dict], bool]:
             media = MEDIA_DICT[tag_key]
             parts.append({"type": media["type"], "content": media["url"]})
         else:
-            clean = re.sub(r"\[(FINALIZADO|IMAGEM)[^\]]*\]", "", part).strip()
+            clean = re.sub(r"\[(FINALIZADO|PENSAR|IMAGEM)[^\]]*\]", "", part).strip()
             if clean:
                 parts.append({"type": "text", "content": clean})
 
     if not parts and text.strip():
         parts = [{"type": "text", "content": text.strip()}]
 
-    return parts, finalizado
+    return parts, finalizado, pensar_days
 
 
 async def _process_message(msg: dict) -> None:
@@ -308,8 +314,8 @@ async def _process_message(msg: dict) -> None:
         _save_session_log(phone)
         return
 
-    parts, finalizado = _parse_ai_response(ai_response)
-    log(_ok(f"[GEMINI] {len(parts)} parte(s), finalizado={finalizado}"))
+    parts, finalizado, pensar_days = _parse_ai_response(ai_response)
+    log(_ok(f"[GEMINI] {len(parts)} parte(s), finalizado={finalizado} pensar_days={pensar_days}"))
     log(_ai(f"[{phone}] {ai_response[:400]}"))
     if tokens[2]:
         log(f"[TOKENS] prompt={tokens[0]} output={tokens[1]} total={tokens[2]}")
@@ -328,7 +334,15 @@ async def _process_message(msg: dict) -> None:
         except Exception as e:
             log(_err(f"[WHATSAPP] falha ao enviar {part['type']} ({i+1}/{len(parts)}): {e}"))
 
-    if finalizado:
+    if pensar_days and pensar_days > 0:
+        # [PENSAR=N] — lead reafirmou que precisa de tempo. Não finaliza:
+        # agenda follow-up suave em N dias (default 3), reset de stage para 1.
+        try:
+            await db.schedule_followup(phone, _next_followup_iso(days=pensar_days), stage=1)
+            log(_ok(f"[{phone}] Lead em modo 'pensar' — follow-up agendado em {pensar_days}d"))
+        except Exception as e:
+            log(_warn(f"[{phone}] falha ao agendar follow-up de pensar: {e}"))
+    elif finalizado:
         # [FINALIZADO=1] encerra o fluxo e desliga follow-up, mas NÃO bloqueia
         # a IA — o lead ainda pode mandar agradecimento/dúvida e a Zoe responde.
         # Bloqueio de 1h só é ativado quando humano assume (from_me=True).
